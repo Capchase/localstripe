@@ -162,12 +162,12 @@ class StripeObject(object):
 
     @classmethod
     def _api_list_all(cls, url, limit=None, starting_after=None, created=None,
-                      **kwargs):
+                      status=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         li = List(url, limit=limit, starting_after=starting_after,
-                  created=created)
+                  created=created, status=status)
         li._list = [value for key, value in store.items()
                     if key.startswith(cls.object + ':')]
         for f in li._filters:
@@ -1394,7 +1394,7 @@ class Invoice(StripeObject):
 
     @classmethod
     def _api_list_all(cls, url, customer=None, subscription=None, limit=None,
-                      starting_after=None, created=None):
+                      starting_after=None, created=None, status=None):
         try:
             if customer is not None:
                 assert type(customer) is str and customer.startswith('cus_')
@@ -1406,7 +1406,7 @@ class Invoice(StripeObject):
 
         li = super(Invoice, cls)._api_list_all(url, limit=limit,
                                                starting_after=starting_after,
-                                               created=created)
+                                               created=created, status=status)
         if customer is not None:
             Customer._api_retrieve(customer)  # to return 404 if not existant
             li._list = [i for i in li._list if i.customer == customer]
@@ -1660,7 +1660,7 @@ class List(StripeObject):
     object = 'list'
 
     def __init__(self, url=None, limit=None, starting_after=None,
-                 created=None):
+                 created=None, status=None):
         limit = try_convert_to_int(limit)
         limit = 10 if limit is None else limit
         created = try_convert_to_int(created)
@@ -1678,6 +1678,8 @@ class List(StripeObject):
                 for key, val in created.items():
                     created[key] = try_convert_to_int(val)
                 assert all(type(v) is int for v in created.values())
+            if status is not None:
+                assert type(status) is str
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1707,6 +1709,10 @@ class List(StripeObject):
             filters.append(f)
         elif type(created) is int:
             filters.append(lambda x: x.created == created)
+
+        if status is not None:
+            filters.append(lambda x: x.status ==
+                           status if hasattr(x, 'status') else True)
 
         self.url = url
 
